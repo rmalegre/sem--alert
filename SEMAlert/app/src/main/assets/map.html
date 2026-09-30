@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>SEMAlert Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #f1f5f9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+        }
+        .user-pulse-marker {
+            position: relative;
+            width: 20px;
+            height: 20px;
+        }
+        .user-dot {
+            width: 16px;
+            height: 16px;
+            background: #2563EB;
+            border: 3px solid #FFFFFF;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(37,99,235,0.6);
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            z-index: 2;
+        }
+        .user-pulse {
+            width: 36px;
+            height: 36px;
+            background: rgba(37,99,235,0.3);
+            border-radius: 50%;
+            position: absolute;
+            top: -8px;
+            left: -8px;
+            animation: pulse 2s infinite ease-out;
+            z-index: 1;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.5); opacity: 1; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+        .car-marker-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            background: #DC2626;
+            border: 3px solid #FFFFFF;
+            border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(220,38,38,0.45);
+        }
+        .car-marker-container svg {
+            width: 24px;
+            height: 24px;
+            fill: #FFFFFF;
+        }
+        .leaflet-control-attribution {
+            font-size: 9px !important;
+            background: rgba(255,255,255,0.7) !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        var map;
+        var userMarker = null;
+        var userAccuracyCircle = null;
+        var carMarker = null;
+        var alertRadiusCircle = null;
+        var userCoords = null;
+        var carCoords = null;
+        var currentRadius = 100;
+
+        function initMap() {
+            // Default center: Posadas, Misiones (-27.367, -55.896) or fallback
+            map = L.map('map', {
+                zoomControl: false,
+                attributionControl: true
+            }).setView([-27.3670, -55.8960], 15);
+
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+
+            map.on('click', function(e) {
+                if (window.AndroidBridge && window.AndroidBridge.onMapClick) {
+                    window.AndroidBridge.onMapClick(e.latlng.lat, e.latlng.lng);
+                }
+            });
+
+            if (window.AndroidBridge && window.AndroidBridge.onMapReady) {
+                window.AndroidBridge.onMapReady();
+            }
+        }
+
+        function setUserPosition(lat, lng, accuracy) {
+            userCoords = [lat, lng];
+            var icon = L.divIcon({
+                className: 'user-pulse-marker',
+                html: '<div class="user-pulse"></div><div class="user-dot"></div>',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+
+            if (!userMarker) {
+                userMarker = L.marker(userCoords, { icon: icon, zIndexOffset: 1000 }).addTo(map);
+            } else {
+                userMarker.setLatLng(userCoords);
+            }
+
+            if (accuracy && accuracy > 0) {
+                if (!userAccuracyCircle) {
+                    userAccuracyCircle = L.circle(userCoords, {
+                        radius: accuracy,
+                        color: '#3B82F6',
+                        weight: 1,
+                        opacity: 0.4,
+                        fillColor: '#60A5FA',
+                        fillOpacity: 0.15
+                    }).addTo(map);
+                } else {
+                    userAccuracyCircle.setLatLng(userCoords);
+                    userAccuracyCircle.setRadius(accuracy);
+                }
+            }
+        }
+
+        function setParkedPosition(lat, lng, radiusMeters) {
+            carCoords = [lat, lng];
+            currentRadius = radiusMeters || 100;
+
+            var carSvg = '<div class="car-marker-container"><svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.85 7h10.29l1.04 3H5.81l1.04-3zM19 17H5v-4.66l.12-.34h13.77l.11.34V17zM7.5 13c.83 0 1.5.67 1.5 1.5S8.33 16 7.5 16 6 15.33 6 14.5 6.67 13 7.5 13zm9 0c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5.67-1.5 1.5-1.5z"/></svg></div>';
+            var carIcon = L.divIcon({
+                className: '',
+                html: carSvg,
+                iconSize: [44, 44],
+                iconAnchor: [22, 22]
+            });
+
+            if (!carMarker) {
+                carMarker = L.marker(carCoords, { icon: carIcon, zIndexOffset: 2000 }).addTo(map);
+            } else {
+                carMarker.setLatLng(carCoords);
+            }
+
+            if (!alertRadiusCircle) {
+                alertRadiusCircle = L.circle(carCoords, {
+                    radius: currentRadius,
+                    color: '#4338CA',
+                    weight: 2,
+                    dashArray: '6, 6',
+                    fillColor: '#4338CA',
+                    fillOpacity: 0.2
+                }).addTo(map);
+            } else {
+                alertRadiusCircle.setLatLng(carCoords);
+                alertRadiusCircle.setRadius(currentRadius);
+            }
+        }
+
+        function updateRadius(radiusMeters) {
+            currentRadius = radiusMeters;
+            if (alertRadiusCircle) {
+                alertRadiusCircle.setRadius(currentRadius);
+            }
+        }
+
+        function clearParkedPosition() {
+            if (carMarker) {
+                map.removeLayer(carMarker);
+                carMarker = null;
+            }
+            if (alertRadiusCircle) {
+                map.removeLayer(alertRadiusCircle);
+                alertRadiusCircle = null;
+            }
+            carCoords = null;
+        }
+
+        function centerOnUser() {
+            if (userCoords) {
+                map.setView(userCoords, 16, { animate: true });
+            }
+        }
+
+        function centerOnCar() {
+            if (carCoords) {
+                map.setView(carCoords, 16, { animate: true });
+            }
+        }
+
+        function fitBoundsAll() {
+            var points = [];
+            if (userCoords) points.push(userCoords);
+            if (carCoords) points.push(carCoords);
+            if (points.length === 1) {
+                map.setView(points[0], 16, { animate: true });
+            } else if (points.length > 1) {
+                var bounds = L.latLngBounds(points);
+                map.fitBounds(bounds, { padding: [50, 50], maxZoom: 17 });
+            }
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+</html>

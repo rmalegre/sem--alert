@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">SEM Alert</string>
+    <string name="app_description">Aviso independiente basado en zonas geográficas configuradas por el usuario.</string>
+</resources>

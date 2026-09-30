@@ -1,0 +1,14 @@
+# Gradle & Build Artifacts
+**/build/
+**/.gradle/
+**/local.properties
+**/.idea/
+**/*.iml
+.DS_Store
+/captures
+.externalNativeBuild
+.cxx
+
+# Binaries
+*.apk
+*.aab
